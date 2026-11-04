@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="ru"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Пик-Коуч">
+<meta name="theme-color" content="#0d1030">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px}img{max-width:100%}html,body{overscroll-behavior-y:none}</style>
+<title>Пик-Коуч</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Russo+One&family=Rubik:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600;800&display=swap">
+<style>
+/* Layout: game-lobby phone app — map hero, blue-vs-red pick board, best-pick hero card; fixed thumb nav at the bottom, floating AI button above it. Single committed dark look. */
+:root{
+  --bg:#0d1030; --bg2:#151a48; --card:#1b2160; --card2:#252c78; --line:#323a8c; --ink:#090b22;
+  --fg:#ffffff; --muted:#a9b0e6; --accent:#ffd02e; --accent2:#ff9f1c;
+  --ally:#2f9bff; --ally2:#1764d8; --enemy:#ff3d5a; --enemy2:#c4163a; --good:#36e39a;
+  --tS:#ff3d6e; --tA:#ff8c2e; --tB:#ffd02e; --tC:#46d97c; --tD:#36b4ff; --tE:#9b74ff; --tF:#7d82b3;
+  --gem:#b066ff; --ball:#3d9bff; --heist:#ff7a2b; --bounty:#20d0c0; --ko:#ff4f8b; --zone:#ffc23a;
+  --display:"Russo One","Rubik",system-ui,sans-serif;
+  --body:"Rubik",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  --navH:64px;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{background:var(--bg)}
+body{background:var(--bg) radial-gradient(120% 60% at 50% -10%,#2a2f8a 0%,transparent 60%) no-repeat;color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.4;
+  padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));
+  padding-block:0 calc(var(--navH) + 96px + env(safe-area-inset-bottom,0px));max-width:560px;margin:0 auto;-webkit-tap-highlight-color:transparent;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-user-select:none;user-select:none}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance;letter-spacing:.01em}
+.chunky{text-shadow:0 2px 0 var(--ink),0 0 1px var(--ink)}
+.press{transition:transform .12s ease}
+.press:active{transform:scale(.96)}
+@media (prefers-reduced-motion:reduce){.press:active{transform:none}*{animation:none!important;transition:none!important}}
+
+/* header */
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-block:14px 10px}
+.logo{display:flex;align-items:center;gap:8px}
+.logo .bolt{width:34px;height:34px;border-radius:10px;background:linear-gradient(160deg,var(--accent),var(--accent2));display:grid;place-items:center;transform:rotate(-6deg);box-shadow:0 3px 0 var(--ink)}
+.logo h1{font-size:21px;line-height:1}
+.logo h1 span{color:var(--accent)}
+.stamp{font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--muted);background:var(--bg2);border-radius:999px;padding:5px 10px;white-space:nowrap}
+
+section.view{display:grid;gap:14px}
+.label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.sub{font-size:12.5px;color:var(--muted)}
+
+/* map hero */
+.hero{position:relative;border-radius:22px;overflow:hidden;padding:16px;display:grid;gap:12px;
+  background:linear-gradient(135deg,var(--mc) 0%,color-mix(in srgb,var(--mc) 40%,var(--bg2)) 70%);box-shadow:0 4px 0 var(--ink)}
+.hero::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(115deg,rgba(255,255,255,.07) 0 14px,transparent 14px 28px);pointer-events:none}
+.hero > *{position:relative;z-index:1}
+.heroTop{display:flex;align-items:center;gap:12px;border:0;background:none;padding:0;text-align:left;width:100%}
+.modeIco{width:48px;height:48px;border-radius:14px;background:rgba(9,11,34,.35);display:grid;place-items:center;flex:none}
+.modeIco svg{width:28px;height:28px}
+.heroTop .mname{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.9}
+.heroTop h2{font-size:24px;line-height:1.1}
+.heroTop .chev{margin-left:auto;background:rgba(9,11,34,.35);border-radius:10px;padding:7px 10px;font-size:12px;font-weight:700;white-space:nowrap}
+.heroRow{display:flex;gap:8px}
+.pill2{flex:1;display:grid;grid-template-columns:1fr 1fr;background:rgba(9,11,34,.35);border-radius:12px;padding:3px}
+.pill2 button{border:0;background:none;border-radius:9px;padding:8px 4px;font-weight:700;font-size:12.5px;color:rgba(255,255,255,.75)}
+.pill2 button[aria-pressed="true"]{background:#fff;color:var(--ink)}
+.iconBtn{border:0;background:rgba(9,11,34,.35);border-radius:12px;width:44px;display:grid;place-items:center;flex:none}
+.iconBtn svg{width:22px;height:22px}
+.shotStatus{font-size:12.5px;background:rgba(9,11,34,.45);border-radius:10px;padding:8px 10px}
+
+/* bans */
+.bans{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.ban{aspect-ratio:1;border-radius:50%;border:2px dashed var(--line);background:none;display:grid;place-items:center;font-family:var(--display);font-size:13px;color:var(--muted);position:relative;padding:0;max-width:100%}
+.ban.filled{border:2px solid var(--enemy);background:var(--card)}
+.ban.filled::after{content:"";position:absolute;inset:14%;background:linear-gradient(45deg,transparent 46%,var(--enemy) 46% 54%,transparent 54%);border-radius:50%}
+.ban .bn{font-size:12px}
+.banLbl{display:flex;justify-content:space-between;align-items:center}
+.linkBtn{border:0;background:none;color:var(--muted);font-size:12px;font-weight:600;padding:4px}
+
+/* versus board */
+.board{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center}
+.team{display:grid;gap:7px}
+.vs{font-family:var(--display);font-size:20px;color:var(--accent);transform:rotate(-8deg)}
+.tile{position:relative;height:62px;border-radius:14px;border:0;padding:0 10px;display:flex;align-items:center;gap:9px;text-align:left;overflow:hidden;box-shadow:0 3px 0 var(--ink)}
+.tile.empty{background:var(--bg2);box-shadow:inset 0 0 0 2px var(--line);color:var(--muted);font-weight:700;font-size:13px;justify-content:center}
+.team.blue .tile:not(.empty):not(.you){background:linear-gradient(120deg,var(--ally),var(--ally2))}
+.team.red .tile:not(.empty){background:linear-gradient(240deg,var(--enemy),var(--enemy2));flex-direction:row-reverse;text-align:right}
+.tile.you{background:var(--bg2);box-shadow:inset 0 0 0 2px var(--accent);justify-content:center;color:var(--accent);font-family:var(--display);font-size:15px}
+.tile .tn{font-weight:800;font-size:13.5px;line-height:1.1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.tile .x{position:absolute;top:4px;right:6px;font-size:11px;opacity:.7}
+.team.red .tile .x{right:auto;left:6px}
+
+/* avatar */
+.av{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-family:var(--display);font-size:15px;color:var(--ink);flex:none;position:relative;
+  background:linear-gradient(160deg,color-mix(in srgb,var(--tc) 70%,#fff),var(--tc));box-shadow:inset 0 -3px 0 rgba(0,0,0,.25),0 0 0 2px var(--ink)}
+.av.sm{width:34px;height:34px;font-size:12.5px;border-radius:10px}
+.av.lg{width:72px;height:72px;font-size:26px;border-radius:18px}
+.av .tb{position:absolute;bottom:-5px;right:-5px;background:var(--ink);color:var(--tc);font-size:10px;width:18px;height:18px;border-radius:6px;display:grid;place-items:center}
+
+/* best pick */
+.card{background:var(--card);border-radius:20px;padding:14px;display:grid;gap:12px;box-shadow:0 3px 0 var(--ink)}
+.best{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center;background:linear-gradient(135deg,var(--card2),var(--card));border-radius:16px;padding:14px;position:relative}
+.best .crown{position:absolute;top:-9px;left:14px;background:var(--accent);color:var(--ink);font-family:var(--display);font-size:11px;padding:3px 9px;border-radius:7px;transform:rotate(-3deg)}
+.best h3{font-size:24px}
+.best .why{font-size:13px;color:var(--muted);margin-top:4px}
+.meter{display:flex;align-items:center;gap:8px;margin-top:8px}
+.meter .trk{flex:1;height:8px;border-radius:99px;background:var(--ink);overflow:hidden}
+.meter .fil{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent2),var(--accent))}
+.meter b{font-family:var(--mono);font-size:12px;color:var(--accent)}
+.alt{display:grid;grid-template-columns:auto 1fr auto;gap:11px;align-items:center;padding:8px 2px;border-top:1px solid var(--line)}
+.alt .nm{font-weight:800}
+.alt .why{font-size:12px;color:var(--muted);line-height:1.3}
+.alt .sc{font-family:var(--mono);font-weight:800;font-size:13px;color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12.5px;font-weight:700;border-radius:999px;padding:6px 11px;background:var(--bg2)}
+.chip.red{background:color-mix(in srgb,var(--enemy) 22%,var(--bg2));color:#ffb3c0}
+.poolRow{display:flex;align-items:center;gap:10px;background:var(--bg2);border-radius:14px;padding:10px 12px}
+.poolRow .t{flex:1;min-width:0}
+.poolRow .t b{display:block;font-size:14px}
+.switch{width:50px;height:30px;border-radius:999px;border:0;background:var(--line);position:relative;flex:none}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:transform .15s}
+.switch[aria-checked="true"]{background:var(--good)}
+.switch[aria-checked="true"]::after{transform:translateX(20px)}
+.smallBtn{border:0;background:var(--card2);border-radius:10px;padding:8px 11px;font-size:12.5px;font-weight:700;white-space:nowrap}
+
+/* FAB */
+.fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--navH) + 14px + env(safe-area-inset-bottom,0px));z-index:15;border:0;border-radius:999px;
+  padding:14px 26px;background:linear-gradient(160deg,var(--accent),var(--accent2));color:var(--ink);font-family:var(--display);font-size:16px;display:flex;align-items:center;gap:9px;
+  box-shadow:0 4px 0 var(--ink),0 10px 30px rgba(255,170,30,.35);white-space:nowrap}
+.fab:active{transform:translateX(-50%) scale(.96)}
+.fab svg{width:20px;height:20px}
+.fab[disabled]{filter:grayscale(.6);opacity:.7}
+
+/* bottom nav */
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:16;background:rgba(13,16,48,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+.nav .in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);height:var(--navH)}
+.nav button{border:0;background:none;display:grid;place-items:center;align-content:center;gap:3px;color:var(--muted);font-size:11px;font-weight:700}
+.nav button svg{width:24px;height:24px}
+.nav button[aria-selected="true"]{color:var(--accent)}
+
+/* sheets */
+.scrim{position:fixed;inset:0;background:rgba(5,6,20,.65);z-index:40;animation:fade .2s}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:41;background:var(--bg);border-radius:24px 24px 0 0;max-height:90%;display:grid;grid-template-rows:auto 1fr;max-width:560px;margin:0 auto;
+  padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 -10px 40px rgba(0,0,0,.5);animation:up .25s cubic-bezier(.2,.9,.3,1.1)}
+@keyframes up{from{transform:translateY(40%);opacity:.4}} @keyframes fade{from{opacity:0}}
+.grab{width:40px;height:5px;border-radius:9px;background:var(--line);margin:8px auto 0}
+.sheetHead{display:grid;gap:10px;padding-block:8px 10px}
+.sheetHead .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.sheetHead h2{font-size:20px}
+.search{width:100%;background:var(--card);border:0;border-radius:14px;padding:12px 14px;font-size:16px}
+.sheetBody{overflow-y:auto;padding-bottom:24px;display:grid;gap:16px;align-content:start;-webkit-overflow-scrolling:touch}
+.bgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:8px}
+.bt{border:0;background:var(--card);border-radius:14px;padding:10px 4px 8px;display:grid;justify-items:center;gap:7px;font-size:11.5px;font-weight:700;line-height:1.1;text-align:center;box-shadow:0 2px 0 var(--ink)}
+.bt[disabled]{opacity:.25}
+.bt[aria-pressed="true"]{background:var(--card2);box-shadow:0 0 0 2px var(--good),0 2px 0 var(--ink)}
+.bt .rec{font-family:var(--mono);font-size:10px;color:var(--accent)}
+.mapGroup{display:grid;gap:8px}
+.mapGroup .gh{display:flex;align-items:center;gap:8px;font-weight:800;font-size:14px}
+.mapGroup .gh i{width:10px;height:10px;border-radius:3px;background:var(--mc)}
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mt{border:0;border-radius:14px;padding:12px;text-align:left;font-weight:800;font-size:13.5px;background:linear-gradient(135deg,color-mix(in srgb,var(--mc) 55%,var(--card)),var(--card));box-shadow:0 2px 0 var(--ink);min-height:54px}
+.mt[aria-pressed="true"]{box-shadow:0 0 0 2px #fff,0 2px 0 var(--ink)}
+.mt small{display:block;font-weight:600;font-size:11px;opacity:.75;margin-top:3px}
+
+/* AI result */
+.thinking{display:grid;justify-items:center;gap:14px;padding:30px 10px;text-align:center;color:var(--muted)}
+.orb{width:64px;height:64px;border-radius:50%;background:conic-gradient(from 0deg,var(--accent),var(--ally),var(--enemy),var(--accent));animation:sp 1.2s linear infinite;-webkit-mask:radial-gradient(circle,transparent 52%,#000 54%);mask:radial-gradient(circle,transparent 52%,#000 54%)}
+@keyframes sp{to{transform:rotate(360deg)}}
+.aip{background:var(--card);border-radius:18px;padding:14px;display:grid;gap:8px;box-shadow:0 3px 0 var(--ink)}
+.aip.first{background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 22%,var(--card2)),var(--card))}
+.aip .h{display:flex;align-items:center;gap:12px}
+.aip .h h3{font-size:20px}
+.aip .rk{font-family:var(--display);font-size:12px;color:var(--ink);background:var(--accent);border-radius:7px;padding:2px 8px;margin-left:auto}
+.aip p{margin:0;font-size:14px;line-height:1.45}
+.aip .k{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:800;margin-top:2px}
+.plan{background:var(--bg2);border-radius:16px;padding:14px;display:grid;gap:6px}
+.plan p{margin:0;font-size:14px}
+.err{color:#ff9aab;font-size:14px;text-align:center;padding:20px}
+.ghostBtn{border:0;background:var(--card2);border-radius:14px;padding:13px;font-weight:700;width:100%}
+
+/* maps view */
+.modes{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-inline:-2px;padding:2px}
+.modes::-webkit-scrollbar{display:none}
+.modes button{flex:none;border:0;background:var(--bg2);border-radius:999px;padding:9px 14px;font-size:13px;font-weight:700;color:var(--muted)}
+.modes button[aria-pressed="true"]{background:var(--fg);color:var(--ink)}
+.mcard{border-radius:20px;overflow:hidden;background:var(--card);box-shadow:0 3px 0 var(--ink)}
+.mcard .mh{padding:14px;display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,color-mix(in srgb,var(--mc) 70%,var(--card)),var(--card))}
+.mcard .mh .modeIco{width:40px;height:40px;border-radius:12px}
+.mcard .mh .modeIco svg{width:22px;height:22px}
+.mcard .mh h2{font-size:19px}
+.mcard .mh .m{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.85}
+.mcard .mh .smallBtn{margin-left:auto;background:rgba(9,11,34,.4)}
+.mcard .mb{padding:14px;display:grid;gap:12px}
+.bar{display:grid;grid-template-columns:auto 1fr 52px;gap:10px;align-items:center}
+.bar .n{font-weight:700;font-size:13.5px;display:flex;align-items:center;gap:8px;min-width:0}
+.bar .n span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px}
+.bar .trk{height:9px;background:var(--ink);border-radius:99px;overflow:hidden}
+.bar .fil{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent2),var(--accent))}
+.bar .v{font-family:var(--mono);font-size:12.5px;font-weight:800;text-align:right}
+.bar .v.low{color:var(--accent2)}
+.comp{display:flex;align-items:center;gap:6px;padding:8px 0;border-top:1px solid var(--line)}
+.comp .avs{display:flex}
+.comp .avs .av{margin-right:-6px}
+.comp .cn{flex:1;font-size:12.5px;font-weight:600;padding-left:12px;min-width:0}
+.comp b{font-family:var(--mono);color:var(--good);font-size:13px}
+.more{border:0;background:none;color:var(--muted);font-weight:700;font-size:12.5px;padding:2px}
+
+/* meta view */
+.podium{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:8px;align-items:end}
+.pod{border-radius:16px 16px 8px 8px;padding:12px 6px;display:grid;justify-items:center;gap:6px;text-align:center;background:var(--bg2)}
+.pod .pn{font-weight:800;font-size:13px}
+.pod .pv{font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:800}
+.pod.p1{padding-block:18px 14px;background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 30%,var(--bg2)),var(--bg2))}
+.pod .place{font-family:var(--display);font-size:13px;color:var(--muted)}
+.tierRow{display:grid;grid-template-columns:44px 1fr;gap:10px;align-items:start}
+.tierL{font-family:var(--display);font-size:22px;height:44px;border-radius:12px;display:grid;place-items:center;color:var(--ink);background:var(--tc);box-shadow:0 3px 0 var(--ink)}
+.tierAvs{display:flex;flex-wrap:wrap;gap:6px}
+.news{display:grid;gap:10px}
+.newsItem{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start}
+.newsItem .ni{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;background:var(--bg2);font-family:var(--display);color:var(--accent)}
+.newsItem p{margin:0;font-size:13.5px}
+.newsItem b{display:block;font-size:14.5px;margin-bottom:2px}
+
+/* coach */
+.coachHead{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center}
+.coachAv{width:52px;height:52px;border-radius:16px;background:linear-gradient(160deg,var(--accent),var(--accent2));display:grid;place-items:center;box-shadow:0 3px 0 var(--ink);transform:rotate(-4deg)}
+.coachAv svg{width:28px;height:28px}
+.sugg{display:flex;flex-wrap:wrap;gap:7px}
+.sugg button{border:0;background:var(--bg2);border-radius:14px;padding:9px 12px;font-size:13px;font-weight:600;text-align:left}
+.chat{display:grid;gap:10px}
+.msg{padding:11px 14px;border-radius:18px;max-width:88%;font-size:14.5px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45}
+.msg.u{justify-self:end;background:linear-gradient(160deg,var(--accent),var(--accent2));color:var(--ink);font-weight:600;border-bottom-right-radius:6px}
+.msg.a{justify-self:start;background:var(--card);border-bottom-left-radius:6px}
+.composer{position:fixed;left:0;right:0;bottom:calc(var(--navH) + env(safe-area-inset-bottom,0px));z-index:15;background:linear-gradient(transparent,var(--bg) 30%);padding-top:18px}
+.composer .in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:1fr auto;gap:8px;padding:0 max(14px,env(safe-area-inset-right,0px)) 10px max(14px,env(safe-area-inset-left,0px))}
+.composer textarea{resize:none;background:var(--card);border:0;border-radius:18px;padding:13px 14px;min-height:48px;max-height:120px;font-size:16px}
+.send{width:48px;height:48px;border-radius:50%;border:0;background:linear-gradient(160deg,var(--accent),var(--accent2));display:grid;place-items:center;box-shadow:0 3px 0 var(--ink)}
+.send svg{width:22px;height:22px}
+.send[disabled]{opacity:.5}
+.foot{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:4px}
+</style>
+</head><body>
+
+
+<header class="top">
+  <div class="logo">
+    <div class="bolt"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" fill="#090b22"/></svg></div>
+    <h1 class="chunky">ПИК-<span>КОУЧ</span></h1>
+  </div>
+  <span class="stamp" id="stamp"></span>
+</header>
+
+<!-- DRAFT -->
+<section class="view" id="v-draft">
+  <div class="hero" id="hero">
+    <button class="heroTop press" id="mapBtn" aria-label="Сменить карту">
+      <div class="modeIco" id="heroIco"></div>
+      <div style="min-width:0"><div class="mname" id="heroMode"></div><h2 class="chunky" id="heroMap"></h2></div>
+      <span class="chev">Сменить ▾</span>
+    </button>
+    <div class="heroRow">
+      <div class="pill2" id="orderSeg">
+        <button data-o="first" aria-pressed="true">Пикаем первыми</button>
+        <button data-o="second" aria-pressed="false">Пикаем вторыми</button>
+      </div>
+      <button class="iconBtn press" id="shotBtn" hidden aria-label="Заполнить по скриншоту"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
+      <button class="iconBtn press" id="resetBtn" aria-label="Новый драфт"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg></button>
+    </div>
+    <div class="shotStatus" id="shotStatus" hidden></div>
+    <input type="file" id="shotInput" accept="image/*" hidden>
+  </div>
+
+  <div style="display:grid;gap:8px">
+    <div class="banLbl"><span class="label">Баны</span><button class="linkBtn" data-clear="bans">Очистить</button></div>
+    <div class="bans" id="banSlots"></div>
+  </div>
+
+  <div class="board">
+    <div class="team blue" id="allySlots"></div>
+    <div class="vs chunky">VS</div>
+    <div class="team red" id="enemySlots"></div>
+  </div>
+
+  <div class="card">
+    <div class="banLbl"><span class="label">Лучший пик сейчас</span><span class="sub" id="bestHint">по статистике</span></div>
+    <div id="bestBox"></div>
+    <div id="altList"></div>
+    <div style="display:grid;gap:8px"><span class="label">Банить на этой карте</span><div class="chips" id="banSugg"></div></div>
+  </div>
+
+  <div class="poolRow">
+    <div class="t"><b>Только мои бравлеры</b><span class="sub" id="poolTxt">Отметь, кто у тебя 11 силы</span></div>
+    <button class="smallBtn press" id="poolBtn">Выбрать</button>
+    <button class="switch" id="poolSw" role="switch" aria-checked="false" aria-label="Только мои бравлеры"></button>
+  </div>
+</section>
+
+<!-- MAPS -->
+<section class="view" id="v-maps" hidden>
+  <div class="modes" id="modeFilter"></div>
+  <div id="mapList" style="display:grid;gap:14px"></div>
+</section>
+
+<!-- META -->
+<section class="view" id="v-tiers" hidden>
+  <div class="card">
+    <div><h2 style="font-size:19px">Что пикают в Masters и Pro</h2><div class="sub">Лобби Masters I и выше · 226 тыс. игр с 16 сентября</div></div>
+    <div class="podium" id="podium"></div>
+    <div class="label">Ещё в топе пиков</div><div class="chips" id="mPick"></div>
+    <div class="label">Лучший винрейт у топов</div><div class="chips" id="mWin"></div>
+  </div>
+  <div class="card">
+    <div><h2 style="font-size:19px">Тир-лист рейтинга</h2><div class="sub">Средний винрейт по шести режимам · 4 ноября</div></div>
+    <div id="tierList" style="display:grid;gap:12px"></div>
+  </div>
+  <div class="card news" id="news"></div>
+</section>
+
+<!-- COACH -->
+<section class="view" id="v-coach" hidden>
+  <div class="card">
+    <div class="coachHead">
+      <div class="coachAv"><svg viewBox="0 0 24 24" fill="#090b22"><path d="M12 2l2.4 5.6L20 10l-5.6 2.4L12 18l-2.4-5.6L4 10l5.6-2.4z"/><circle cx="19" cy="19" r="2"/></svg></div>
+      <div><h2 style="font-size:19px">Тренер</h2><div class="sub">Знает всю мету из приложения и видит твой драфт</div></div>
+    </div>
+    <div class="sugg" id="sugg"></div>
+  </div>
+  <div class="chat" id="chat"></div>
+</section>
+
+<p class="foot" id="foot">Статистика рейтинга всех лиг и выборка Masters+ на 4 ноября 2026. Оранжевый винрейт — мало игр, доверяй меньше.</p>
+
+<div class="composer" id="composer" hidden><div class="in">
+  <textarea id="ask" rows="1" placeholder="Спроси тренера…"></textarea>
+  <button class="send press" id="send" aria-label="Отправить"><svg viewBox="0 0 24 24" fill="none" stroke="#090b22" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+</div></div>
+
+<button class="fab press" id="aiBtn" hidden><svg viewBox="0 0 24 24" fill="#090b22"><path d="M12 2l2.4 5.6L20 10l-5.6 2.4L12 18l-2.4-5.6L4 10l5.6-2.4z"/><circle cx="19" cy="19" r="2"/></svg>Разбор ИИ</button>
+
+<nav class="nav"><div class="in" role="tablist">
+  <button role="tab" data-tab="draft" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3l3 3-3 3M18 3l-3 3 3 3"/><path d="M4 21l7-7M20 21l-7-7"/></svg>Драфт</button>
+  <button role="tab" data-tab="maps" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>Карты</button>
+  <button role="tab" data-tab="tiers" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/></svg>Мета</button>
+  <button role="tab" data-tab="coach" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/><path d="M9 10h6"/></svg>Тренер</button>
+</div></nav>
+
+<div id="sheetWrap" hidden>
+  <div class="scrim" id="scrim"></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div><div class="grab"></div>
+    <div class="sheetHead">
+      <div class="row"><h2 id="sheetTitle">Выбор</h2><button class="smallBtn press" id="sheetClose">Готово</button></div>
+      <input class="search" id="search" type="search" placeholder="Поиск по имени" autocomplete="off">
+    </div></div>
+    <div class="sheetBody" id="sheetBody"></div>
+  </div>
+</div>
+
+<script>
+/* ===================== DATA (collected 2026-11-04) ===================== */
+const DATA_DATE = "4 ноя 2026";
+const TIERS = {
+ S:["Vince","Wendy","Cosmo","Amber","Shade"],
+ A:["Bolt","Nori","Gus","Starr Nova","R-T","Gigi","Juju","Pierce","Lumi","Mina","Ash"],
+ B:["Glowy","Doug","Ruffs","Finx","Bo","Hank","Moe","Chuck","Damian","Draco","Kaze","Sirius","Trunk","Gray","Carl","8-Bit"],
+ C:["Pearl","Mico","Eve","Janet","Lola","Stu","Maisie","Griff","Chester","Meeple","Mr. P","Alli","Jessie","Sprout","Penny","Sam","Larry & Lawrie","Jae-Yong","Buster","Charlie","Willow","Colette","Emz","Lou","Max","Tara","Nani"],
+ D:["Meg","Najia","Ziggy","Kit","Melodie","Bibi","Nita","Pam","Mandy","Kenji","Belle","Ollie","Cordelius","Otis","Clancy","El Primo","Darryl","Angelo","Buzz","Mortis","Rico","Lily"],
+ E:["Gale","Bonnie","Surge","Sandy","Bea","Berry","Spike","Brock","Poco","Squeak","Tick","Rosa","Fang","Bull","Edgar","Piper"],
+ F:["Barley","Frank","Grom","Byron","Dynamike","Jacky","Leon","Colt","Crow","Gene","Shelly"]
+};
+const TIER_OF = {}; for (const t in TIERS) for (const b of TIERS[t]) TIER_OF[b]=t;
+const ALL = Object.values(TIERS).flat().sort((a,b)=>a.localeCompare(b));
+const TIER_SCORE = {S:5,A:4,B:3,C:2,D:1,E:0,F:-1};
+const MASTERS_PICK = [["Gus",47.8],["Max",32.7],["Colette",32.6],["Rico",null],["Wendy",null],["Brock",null]];
+const MASTERS_WIN = [["Larry & Lawrie",57.6],["Tara",57.6],["Nita",57.5],["Mr. P",null],["Juju",null],["Ollie",null],["Shade",null]];
+const MODES = {gem:"Захват кристаллов",ball:"Броулбол",heist:"Ограбление",bounty:"Награда за поимку",ko:"Нокаут",zone:"Горячая зона"};
+// top: [brawler, winrate %, pickrate %] (ranked, all leagues); most: [brawler, pickrate %]; comps: [a,b,c, winrate %]
+const MAPS = [
+ {n:"Double Swoosh",m:"gem",top:[["Bolt",61.6,6.3],["Amber",56.6,8.7],["Rosa",56.1,4.4],["Tara",56.1,18.7],["Wendy",56.1,7.8]],most:[["Griff",36.8],["Emz",30.3],["Surge",24.5],["Bo",23.3],["Mortis",19.4]],comps:[["Amber","Otis","Wendy",80.8],["Bo","Sandy","Bolt",80.4],["Emz","Amber","Wendy",80.1]]},
+ {n:"Gem Fort",m:"gem",top:[["Bolt",62.3,5.4],["Wendy",57.2,8.4],["Amber",55.8,9.1],["Ash",55.5,13.4],["Tara",55.2,12.6]],most:[["Rico",37.8],["Griff",32.2],["Surge",24.7],["Bo",21.5],["Emz",21.5]],comps:[["Tara","Starr Nova","Bolt",79.3],["Bo","Starr Nova","Bolt",79.2],["Bo","Tara","Rosa",78.2]]},
+ {n:"Hard Rock Mine",m:"gem",top:[["Bolt",58.8,3.9],["Shade",58.1,11.2],["Mr. P",57.1,0.7],["Ash",57.0,12.9],["Wendy",55.8,8.9]],most:[["Rico",42.6],["Griff",30.3],["Surge",23.8],["Bo",22.9],["Mortis",20.6]],comps:[["Shade","Nori","Wendy",84.6],["Spike","Shade","Wendy",80.5],["Bo","Tara","Shade",79.6]]},
+ {n:"Undermine",m:"gem",top:[["Bolt",60.1,4.8],["Wendy",59.6,8.9],["Amber",57.5,8.8],["Shade",55.9,9.7],["Ash",55.1,12.5]],most:[["Rico",34.8],["Griff",33.6],["Surge",23.2],["Bo",22.5],["Mortis",21.5]],comps:[["Amber","Shade","Wendy",85.5],["Bull","Amber","Wendy",85.2],["El Primo","Amber","Wendy",80.5]]},
+ {n:"Rustic Arcade",m:"gem",top:[["Bolt",66.6,10.1],["Wendy",59.6,0.2],["Clancy",58.7,1.5],["Mr. P",57.5,1.0],["Bo",57.0,22.5]],most:[["Brock",28.7],["Griff",23.3],["Crow",22.8],["Bo",22.5],["Piper",20.9]],comps:[["Jessie","Edgar","Bolt",86.0],["Poco","Bo","Bolt",85.5],["Jessie","Bolt","Nori",83.9]]},
+ {n:"Center Stage",m:"ball",top:[["Shade",58.8,9.9],["Jacky",58.7,2.2],["Amber",58.4,9.3],["Ash",56.4,11.4],["Rosa",56.4,1.9]],most:[["Griff",41.2],["Rico",40.9],["Emz",24.3],["Surge",22.8],["Edgar",18.0]],comps:[["Amber","Gus","Shade",83.7],["Amber","Shade","Starr Nova",80.4],["Rico","Darryl","Doug",80.4]]},
+ {n:"Pinball Dreams",m:"ball",top:[["Shade",60.0,11.3],["Amber",58.8,9.2],["Ash",56.9,9.9],["Larry & Lawrie",56.0,1.4],["Wendy",55.9,7.0]],most:[["Rico",41.6],["Griff",39.7],["Surge",26.9],["Stu",25.2],["Emz",23.6]],comps:[["Amber","Gus","Shade",84.5],["Shade","Pierce","Wendy",82.9],["El Primo","Bibi","Amber",82.7]]},
+ {n:"Sneaky Fields",m:"ball",top:[["Jacky",58.2,3.7],["Amber",58.0,9.1],["Rosa",57.1,3.1],["R-T",55.4,1.0],["Ash",55.2,14.9]],most:[["Rico",41.9],["Griff",41.0],["Emz",30.3],["Surge",26.9],["Bull",22.4]],comps:[["El Primo","Amber","Starr Nova",80.7],["Tick","Bibi","Doug",80.7],["Emz","Jacky","Ash",80.4]]},
+ {n:"Triple Dribble",m:"ball",top:[["Amber",59.0,9.4],["Jacky",57.0,2.4],["Larry & Lawrie",56.8,3.2],["Shade",56.8,14.6],["El Primo",55.1,12.6]],most:[["Rico",38.9],["Griff",34.7],["Surge",29.8],["Emz",28.7],["Edgar",22.6]],comps:[["Amber","Shade","Wendy",84.6],["El Primo","Amber","Otis",82.5],["Frank","Gus","Shade",80.0]]},
+ {n:"Beach Ball",m:"ball",top:[["Amber",63.5,12.5],["Shade",63.3,11.5],["Wendy",61.4,11.2],["Gus",58.6,20.5],["El Primo",57.7,16.1]],most:[["Griff",43.8],["Stu",39.3],["Surge",33.3],["Rico",29.0],["Emz",23.6]],comps:[["El Primo","Gus","Shade",86.3],["El Primo","Colette","Shade",84.5],["Emz","Gus","Shade",84.5]]},
+ {n:"Spiraling Out",m:"ball",top:[["Wendy",62.5,4.4],["Amber",61.8,5.6],["Shade",59.4,7.0],["Ash",57.8,5.7],["Gus",57.7,8.5]],most:[["Griff",42.5],["Rico",31.7],["Stu",31.1],["Surge",30.2],["Emz",19.9]],comps:[["El Primo","Max","Amber",84.8],["Surge","Amber","Wendy",84.8],["El Primo","Gus","Shade",84.2]]},
+ {n:"Dry Season",m:"bounty",top:[["Bolt",62.2,4.2],["Amber",58.4,7.7],["Wendy",58.3,8.5],["Mr. P",57.7,2.5],["Shade",55.4,7.4]],most:[["Brock",49.2],["Piper",29.9],["Byron",28.8],["Pierce",24.7],["Mortis",22.3]],comps:[["Brock","Bo","Bolt",84.1],["Amber","Gus","Shade",79.6],["Amber","Edgar","Wendy",78.4]]},
+ {n:"Hideout",m:"bounty",top:[["Bolt",61.4,6.1],["Amber",58.5,7.6],["Wendy",58.0,8.5],["Ollie",55.4,0.6],["Mr. P",54.3,1.7]],most:[["Brock",48.3],["Piper",44.0],["Byron",33.5],["Max",26.6],["Pierce",26.0]],comps:[["Max","Sprout","Amber",78.8],["Surge","Pierce","Bolt",78.0],["Mortis","Belle","Bolt",77.8]]},
+ {n:"Layer Cake",m:"bounty",top:[["Bolt",62.0,2.7],["Amber",57.7,7.5],["Mr. P",56.5,2.5],["Wendy",56.4,6.9],["Brock",56.0,41.4]],most:[["Brock",41.4],["Rico",22.3],["Mortis",21.6],["Edgar",21.2],["Meeple",21.2]],comps:[["Amber","Shade","Wendy",83.3],["Colette","Amber","Shade",81.7],["Mortis","Surge","Bolt",80.4]]},
+ {n:"Shooting Star",m:"bounty",top:[["Bolt",60.6,6.3],["Wendy",59.4,8.8],["Amber",57.2,7.3],["Mr. P",57.0,1.9],["Sprout",56.5,5.2]],most:[["Piper",49.5],["Brock",47.4],["Byron",38.3],["Pierce",28.2],["Max",25.5]],comps:[["Brock","Surge","Pearl",85.3],["Leon","Angelo","Bolt",80.0],["Amber","Pearl","Wendy",78.3]]},
+ {n:"Bridge Too Far",m:"heist",top:[["Nori",61.7,23.9],["Wendy",61.7,8.0],["Shade",60.0,10.7],["8-Bit",59.3,31.4],["Sam",55.8,0.2]],most:[["Colt",55.9],["Brock",46.6],["Colette",31.7],["8-Bit",31.4],["Piper",30.3]],comps:[["8-Bit","Shade","Wendy",84.4],["8-Bit","Nori","Wendy",83.2],["8-Bit","Shade","Nori",83.1]]},
+ {n:"Hot Potato",m:"heist",top:[["Bibi",60.4,10.6],["Nori",59.9,25.6],["Shade",59.7,11.3],["Nita",58.4,17.6],["Sam",56.2,0.2]],most:[["Rico",40.8],["Colt",38.3],["Griff",33.3],["Colette",30.5],["Edgar",29.2]],comps:[["Bull","Bibi","Cordelius",82.4],["Bibi","Amber","Shade",82.2],["Nita","Bibi","Mico",80.2]]},
+ {n:"Kaboom Canyon",m:"heist",top:[["Nori",62.6,26.6],["Shade",59.0,11.3],["Wendy",58.0,7.7],["Bibi",56.2,3.2],["Melodie",56.2,16.2]],most:[["Colt",49.3],["Brock",41.8],["Colette",33.5],["Nori",26.6],["Griff",25.2]],comps:[["Amber","Nori","Wendy",83.9],["Amber","Shade","Wendy",83.1],["Colt","Shade","Glowy",81.8]]},
+ {n:"Safe Zone",m:"heist",top:[["Shade",62.5,11.8],["Nori",62.3,26.8],["Bolt",58.1,2.7],["Wendy",57.8,7.5],["Amber",56.0,10.0]],most:[["Colt",46.8],["Brock",45.7],["Colette",32.3],["8-Bit",28.5],["Nori",26.8]],comps:[["Jessie","Penny","Bibi",85.1],["Amber","Eve","Nori",84.0],["Chuck","Starr Nova","Nori",84.0]]},
+ {n:"Pit Stop",m:"heist",top:[["Nori",62.3,35.9],["Bibi",59.7,16.2],["Edgar",57.5,41.4],["Mico",57.4,25.7],["Shade",56.5,21.8]],most:[["Edgar",41.4],["Nori",35.9],["Kaze",35.6],["Griff",31.5],["Mico",25.7]],comps:[["Bibi","Trunk","Nori",86.5],["Bull","Carl","Nori",85.5],["Edgar","Gigi","Nori",83.0]]},
+ {n:"Dueling Beetles",m:"zone",top:[["Amber",61.6,9.0],["Wendy",58.8,8.2],["Ash",56.6,7.0],["Kenji",56.4,7.8],["Doug",55.9,3.3]],most:[["Griff",36.9],["Emz",34.3],["Bo",28.3],["Edgar",22.8],["Surge",20.6]],comps:[["Amber","Kenji","Wendy",85.7],["Spike","Barley","Wendy",85.7],["Amber","Gus","Maisie",85.5]]},
+ {n:"Open Business",m:"zone",top:[["Amber",60.5,9.4],["Ash",58.9,8.2],["Wendy",58.7,8.6],["Hank",58.1,1.0],["Kenji",56.8,7.4]],most:[["Griff",38.6],["Emz",32.9],["Bo",28.9],["Stu",21.7],["Surge",21.3]],comps:[["El Primo","Amber","Ash",86.8],["Amber","Kenji","Wendy",84.5],["Amber","Meg","Shade",84.2]]},
+ {n:"Parallel Plays",m:"zone",top:[["Juju",59.1,16.5],["R-T",57.3,8.6],["Bibi",57.1,25.5],["Doug",56.5,14.8],["Hank",55.5,6.6]],most:[["Surge",35.1],["Edgar",29.6],["Bibi",25.5],["Nori",21.6],["Shade",20.8]],comps:[["Jacky","Doug","Sirius",80.3],["Stu","Gus","Shade",79.1],["Bibi","Lily","Juju",78.9]]},
+ {n:"Ring of Fire",m:"zone",top:[["Wendy",65.5,9.0],["Amber",61.4,8.8],["Bolt",60.6,4.0],["Ash",59.3,4.7],["Rosa",58.4,0.5]],most:[["Bo",35.2],["Griff",32.5],["Pierce",29.1],["Brock",20.9],["Emz",20.0]],comps:[["Amber","Meg","Wendy",94.5],["Amber","Nori","Wendy",91.9],["Amber","Ash","Wendy",87.7]]},
+ {n:"In the Liminal",m:"zone",top:[["Amber",63.3,13.4],["Ash",59.2,14.2],["Wendy",59.0,16.8],["Glowy",58.8,1.7],["Rosa",58.3,0.4]],most:[["Colette",39.3],["Bo",35.7],["Griff",34.0],["Pierce",32.7],["Gus",28.7]],comps:[["Amber","Stu","Wendy",92.7],["Max","Amber","Gus",82.0],["8-Bit","Amber","Gus",80.0]]},
+ {n:"Quick Travel",m:"zone",top:[["Nita",61.6,15.6],["Ash",57.5,32.4],["Sirius",56.7,10.0],["Rosa",55.9,4.1],["Shade",55.7,19.4]],most:[["Griff",44.6],["Emz",40.4],["Ash",32.4],["Gus",32.2],["Colette",29.5]],comps:[["Nita","Rosa","Emz",80.0],["Nita","Gus","Trunk",78.6],["Nita","Stu","Gus",77.9]]},
+ {n:"Belle's Rock",m:"ko",top:[["Bolt",57.3,3.1],["Brock",56.6,50.3],["Wendy",56.6,9.5],["Sprout",56.2,15.4],["Grom",55.0,8.8]],most:[["Brock",50.3],["Rico",42.0],["Gray",22.9],["Byron",19.4],["Edgar",19.2]],comps:[["Brock","R-T","Shade",78.3],["Brock","Carl","Mr. P",78.2],["Brock","Grom","Meg",78.2]]},
+ {n:"Flaring Phoenix",m:"ko",top:[["Doug",57.5,3.7],["Pearl",57.4,16.4],["Brock",57.0,50.5],["Edgar",56.6,18.5],["Grom",56.3,7.7]],most:[["Brock",50.5],["Piper",20.5],["Gene",20.3],["Mandy",19.7],["Gus",18.7]],comps:[["Brock","Darryl","Lily",84.1],["Penny","Edgar","Pearl",84.1],["Brock","Emz","Wendy",80.5]]},
+ {n:"Flowing Springs",m:"ko",top:[["Wendy",58.5,11.7],["Grom",57.9,9.3],["Mr. P",57.9,4.8],["Najia",57.6,11.0],["Sprout",56.0,3.7]],most:[["Brock",47.7],["Piper",41.3],["Byron",36.1],["Mandy",31.0],["Gus",28.8]],comps:[["Amber","Najia","Wendy",80.6],["Brock","Sprout","Angelo",80.1],["Brock","Najia","Wendy",78.6]]},
+ {n:"Goldarm Gulch",m:"ko",top:[["Pearl",58.5,24.3],["Frank",57.3,1.7],["Wendy",56.4,15.7],["Mr. P",56.3,4.1],["Brock",56.2,46.9]],most:[["Brock",46.9],["Rico",39.2],["Gus",32.0],["Pearl",24.3],["Byron",24.0]],comps:[["Spike","Pearl","Wendy",78.0],["Brock","Pearl","Wendy",75.0],["Brock","Gus","Buster",74.5]]},
+ {n:"New Horizons",m:"ko",top:[["Wendy",60.3,8.5],["Bolt",57.3,4.3],["Sprout",57.1,5.4],["Pearl",56.5,12.6],["Brock",56.2,48.0]],most:[["Brock",48.0],["Piper",32.7],["Byron",26.5],["Colt",21.9],["Max",21.3]],comps:[["Brock","Bolt","Wendy",79.1],["Sprout","Gray","Wendy",78.4],["Piper","Sprout","Wendy",77.4]]},
+ {n:"Out in the Open",m:"ko",top:[["Wendy",60.7,9.9],["Pearl",58.3,24.6],["Brock",57.9,45.5],["Bolt",56.1,2.7],["Ollie",55.5,0.7]],most:[["Brock",45.5],["Piper",38.3],["Byron",31.9],["Pearl",24.6],["Pierce",23.6]],comps:[["8-Bit","Amber","Wendy",84.9],["Brock","Amber","Wendy",81.6],["Brock","Meg","Wendy",80.4]]}
+];
+const KITS = `Wendy (мифик, поддержка): ходит по воде, Супер заряжается от урона по щиту; генератор Planet Protector поглощает 60% урона союзников рядом. Гаджеты: Wind-Powered (прыжок), Green Grenade (замедляет и режет хил). Опции SP: Slowing Shield (Горячая зона, Кристаллы), Solar Shield. Гиперзаряд Green Energy (поглощение 90%). Контрится давлением на генератор, отбрасыванием, уроном по времени, боем вне радиуса генератора.
+Nori (легендарка, ассасин): удочка, полный заряд перепрыгивает стены, пойманная рыба лечит и копит Супер. Опции сборки: Sushi Snack, Gonna Need a Bigger Net, Big Haul, His Mother's Son. Гиперзаряд Master Fisherman. Контры: отбрасывание, станы, обзор (Gale, Shelly, R-T).
+Cosmo (мифик, контроллер, с 10.09.2026): планеты 250 урона вблизи и до 1000 на краю дальности 9 клеток; Супер Gravitational Pull — снаряды союзников самонаводятся на цель 6 сек. Гаджет Planetary Pushback (база) или Telescope Trap (Горячая зона). SP Ammo Attractor (база) или Precession (открытые карты, Награда, Нокаут). Слаб на тесных картах Броулбола и Ограбления. Контры: дайв (Mortis, Kenji).
+Vince (мифик, дамагер): фармит гусениц в мотыльков, Супер Barista Barrage вешает дебафф, по которому усиливаются атаки; смерть сжигает 50% коллекции. Гаджеты Metamothosis / Hot Coffee, SP Come to Papa (открытые карты) / Bug Bandage. Сильнее в Кристаллах, Горячей зоне, Броулболе; рискован в Нокауте. Контры: бурст, который быстро убивает.
+Октябрьский Brawl Talk: новые гиперзаряды Cosmo и Vince (самонаводящийся Супер с рутом). Баффи для Mr. P, Lou, Gale, Chester, Mandy, Berry. Новые бравлеры: Thunder Frogs (легендарка, артиллерия, ноябрь), Rey и Ruby (синергия друг с другом).`;
+const RANKED_RULES = `Рейтинг: только 11 сила. С Diamond I — по 3 бана на команду до пиков, затем порядок пиков 1-2-2-1 (первая команда берёт 1 бравлера, вторая 2, первая 2, вторая последнего — последний пик может контрить всё). В Masters+ командой заходить нельзя, с Mythic I матчмейкинг строже. Победа 2-0 даёт больше очков, поражение 1-2 снимает меньше.`;
+
+/* ===================== STATE ===================== */
+const MODE_COLOR = {gem:"var(--gem)",ball:"var(--ball)",heist:"var(--heist)",bounty:"var(--bounty)",ko:"var(--ko)",zone:"var(--zone)"};
+const MODE_SVG = {
+ gem:`<svg viewBox="0 0 24 24" fill="#fff"><path d="M7 3h10l4 6-9 12L3 9z" opacity=".95"/><path d="M3 9h18M12 21 8 9l4-6 4 6z" fill="none" stroke="#090b22" stroke-width="1.4"/></svg>`,
+ ball:`<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="#fff"/><path d="M12 7l4 3-1.5 4.5h-5L8 10z" fill="#090b22"/><path d="M12 3v4M16 10l4-1M14.5 14.5 17 18M9.5 14.5 7 18M8 10 4 9" stroke="#090b22" stroke-width="1.4"/></svg>`,
+ heist:`<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3" fill="#fff"/><circle cx="12" cy="12" r="4.2" fill="none" stroke="#090b22" stroke-width="2"/><path d="M12 8v2M12 14v2M8 12h2M14 12h2" stroke="#090b22" stroke-width="1.6"/></svg>`,
+ bounty:`<svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.2 1.3-6.6-4.9-4.6 6.6-.8z" fill="#fff"/></svg>`,
+ ko:`<svg viewBox="0 0 24 24"><path d="M12 3c-4.5 0-8 3.2-8 7.5 0 2.6 1.3 4.4 3 5.5V20h10v-4c1.7-1.1 3-2.9 3-5.5C20 6.2 16.5 3 12 3z" fill="#fff"/><circle cx="9" cy="11" r="2" fill="#090b22"/><circle cx="15" cy="11" r="2" fill="#090b22"/><path d="M10 20v-2.5M14 20v-2.5" stroke="#090b22" stroke-width="1.4"/></svg>`,
+ zone:`<svg viewBox="0 0 24 24"><path d="M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 2-5 3-6 0 2 1 3 2 3 0-3-1-6 1-9z" fill="#fff"/><path d="M12 21a3 3 0 0 1-3-3c0-2 2-3 3-5 1 2 3 3 3 5a3 3 0 0 1-3 3z" fill="#090b22" opacity=".8"/></svg>`
+};
+const S = {map:MAPS[0].n, order:"first", bans:[], allies:[], enemies:[], poolOnly:false, pool:[]};
+function load(){ try{ Object.assign(S, JSON.parse(localStorage.getItem("pickcoach")||"{}")); }catch(e){} if(!MAPS.find(m=>m.n===S.map)) S.map=MAPS[0].n; }
+function save(){ try{ localStorage.setItem("pickcoach", JSON.stringify(S)); }catch(e){} }
+load();
+const $ = s=>document.querySelector(s);
+const esc = s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const tc = t=>`var(--t${t||"F"})`;
+const ini = n=>{const w=n.replace(/[^A-Za-z0-9 &-]/g,"").split(/[ &-]+/).filter(Boolean); return (w.length>1?w[0][0]+w[1][0]:n.replace(/[^A-Za-z0-9]/g,"").slice(0,2)).toUpperCase();};
+const av = (b,cls="")=>{const t=TIER_OF[b]||"F"; return `<div class="av ${cls}" style="--tc:${tc(t)}">${esc(ini(b))}${cls==="sm"?"":`<span class="tb">${t}</span>`}</div>`;};
+const curMap = ()=>MAPS.find(m=>m.n===S.map);
+$("#stamp").textContent = "мета · " + DATA_DATE;
+
+/* ===================== NAV ===================== */
+let tab="draft";
+function setTab(t){
+  tab=t;
+  document.querySelectorAll(".nav button").forEach(x=>x.setAttribute("aria-selected", x.dataset.tab===t));
+  for (const v of ["draft","maps","tiers","coach"]) $("#v-"+v).hidden = v!==t;
+  const fb=$("#aiBtn")||$("#aiLink"); if(fb) fb.hidden = !(t==="draft");
+  $("#composer").hidden = t!=="coach";
+  $("#foot").hidden = t==="coach";
+  window.scrollTo(0,0);
+}
+document.querySelectorAll(".nav button").forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+
+/* ===================== SCORING ===================== */
+function used(){ return new Set([...S.bans,...S.allies,...S.enemies]); }
+function scoreBrawler(b, map){
+  let s = TIER_SCORE[TIER_OF[b]] * 2; const why=[];
+  const t = map.top.find(x=>x[0]===b);
+  if (t){ const w = t[2] < 2 ? 0.45 : 1; s += (t[1]-52)*0.9*w; why.push(`${t[1]}% побед на карте${t[2]<2?" (мало игр)":""}`); }
+  const m = map.most.find(x=>x[0]===b);
+  if (m){ s += 1.5; why.push(`берут в ${m[1]}% игр`); }
+  let inComp=false;
+  for (const c of map.comps){ if (!c.slice(0,3).includes(b)) continue;
+    const mates = c.slice(0,3).filter(x=>x!==b && S.allies.includes(x));
+    s += 1 + mates.length*3.5;
+    if (mates.length) why.unshift(`связка с ${mates.join(" + ")}: ${c[3]}%`); else inComp=true; }
+  if (inComp && !why.some(x=>x.startsWith("связка"))) why.push("в лучших тройках карты");
+  if (MASTERS_PICK.some(x=>x[0]===b)){ s += 1.5; why.push("частый пик Masters+"); }
+  if (MASTERS_WIN.some(x=>x[0]===b)){ s += 1; why.push("сильный винрейт в Masters+"); }
+  if (!why.length) why.push(`тир ${TIER_OF[b]} в мете`);
+  return {b, s, why, tier:TIER_OF[b]};
+}
+function candidates(){
+  const u=used(), map=curMap();
+  let list = ALL.filter(b=>!u.has(b));
+  if (S.poolOnly && S.pool.length) list = list.filter(b=>S.pool.includes(b));
+  return list.map(b=>scoreBrawler(b,map)).sort((a,b)=>b.s-a.s);
+}
+
+/* ===================== DRAFT ===================== */
+document.querySelectorAll("#orderSeg button").forEach(b=>b.onclick=()=>{S.order=b.dataset.o; save(); renderDraft();});
+document.querySelectorAll("[data-clear]").forEach(b=>b.onclick=()=>{S[b.dataset.clear]=[]; save(); renderDraft();});
+$("#resetBtn").onclick=()=>{S.bans=[];S.allies=[];S.enemies=[]; save(); renderDraft();};
+$("#mapBtn").onclick=()=>openSheet("map");
+$("#poolBtn").onclick=()=>openSheet("pool");
+$("#poolSw").onclick=()=>{ if(!S.pool.length){ openSheet("pool"); return; } S.poolOnly=!S.poolOnly; save(); renderDraft(); };
+
+function renderDraft(){
+  const map=curMap();
+  $("#hero").style.setProperty("--mc", MODE_COLOR[map.m]);
+  $("#heroIco").innerHTML = MODE_SVG[map.m];
+  $("#heroMode").textContent = MODES[map.m];
+  $("#heroMap").textContent = map.n;
+  document.querySelectorAll("#orderSeg button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.o===S.order));
+  let h=""; for(let i=0;i<6;i++){ const v=S.bans[i];
+    h+= v ? `<button class="ban filled press" data-k="bans" data-i="${i}" aria-label="Убрать бан ${esc(v)}"><span class="bn">${esc(ini(v))}</span></button>`
+          : `<button class="ban press" data-k="bans" data-i="${i}" aria-label="Добавить бан">+</button>`; }
+  $("#banSlots").innerHTML=h;
+  const tile=(k,v,i)=> v ? `<button class="tile press" data-k="${k}" data-i="${i}" aria-label="Убрать ${esc(v)}">${av(v,"sm")}<span class="tn">${esc(v)}</span><span class="x">✕</span></button>`
+                        : `<button class="tile empty press" data-k="${k}" data-i="${i}">+ ${k==="allies"?"союзник":"враг"}</button>`;
+  $("#allySlots").innerHTML = `<div class="tile you">ТЫ</div>` + [0,1].map(i=>tile("allies",S.allies[i],i)).join("");
+  $("#enemySlots").innerHTML = [0,1,2].map(i=>tile("enemies",S.enemies[i],i)).join("");
+  document.querySelectorAll("[data-k]").forEach(el=>el.onclick=()=>{
+    const k=el.dataset.k, i=+el.dataset.i;
+    if (S[k][i]){ S[k].splice(i,1); save(); renderDraft(); } else openSheet(k);
+  });
+  $("#poolSw").setAttribute("aria-checked", S.poolOnly && S.pool.length>0);
+  $("#poolTxt").textContent = S.pool.length ? `Отмечено: ${S.pool.length}` : "Отметь, кто у тебя 11 силы";
+  $("#poolBtn").textContent = S.pool.length ? "Изменить" : "Выбрать";
+
+  const c = candidates();
+  const top=c[0], maxS=c.length?Math.max(c[0].s,1):1;
+  $("#bestBox").innerHTML = top ? `<div class="best"><span class="crown">ЛУЧШИЙ ПИК</span>${av(top.b,"lg")}
+      <div style="min-width:0"><h3 class="chunky">${esc(top.b)}</h3><div class="why">${esc(top.why.slice(0,3).join(" · "))}</div>
+      <div class="meter"><div class="trk"><div class="fil" style="width:100%"></div></div><b>${top.s.toFixed(1)}</b></div></div></div>`
+    : `<p class="sub">Никого не осталось. Выключи «Только мои бравлеры».</p>`;
+  $("#altList").innerHTML = c.slice(1,6).map((x,i)=>`<div class="alt">${av(x.b,"sm")}<div style="min-width:0"><div class="nm">${esc(x.b)}</div><div class="why">${esc(x.why.slice(0,2).join(" · "))}</div></div><div class="sc">${x.s.toFixed(1)}</div></div>`).join("");
+  $("#bestHint").textContent = S.allies.length||S.enemies.length ? "с учётом драфта" : "по статистике карты";
+  const u=used();
+  const threats = map.top.filter(t=>t[2]>=4 && !u.has(t[0])).slice(0,3).map(t=>t[0]);
+  for (const x of map.most) if (threats.length<3 && !u.has(x[0]) && !threats.includes(x[0]) && (map.top.find(t=>t[0]===x[0])||TIER_SCORE[TIER_OF[x[0]]]>=2)) threats.push(x[0]);
+  $("#banSugg").innerHTML = threats.map(b=>`<span class="chip red">${esc(b)}</span>`).join("") || `<span class="sub">Главные угрозы уже забанены или взяты.</span>`;
+}
+
+/* ===================== SHEET ===================== */
+let sheetKind=null;
+const TITLES={bans:"Бан",allies:"Союзник",enemies:"Враг",pool:"Мои бравлеры 11 силы",map:"Выбор карты",ai:"Разбор тренера"};
+function openSheet(kind){
+  sheetKind=kind; $("#sheetTitle").textContent=TITLES[kind];
+  const s=$("#search"); s.value=""; s.hidden = kind==="ai"||kind==="map";
+  $("#sheetWrap").hidden=false; document.body.style.overflow="hidden";
+  if (kind!=="ai") renderSheet();
+}
+function closeSheet(){
+  if (sheetKind==="ai" && aiCtl) aiCtl.abort();
+  $("#sheetWrap").hidden=true; document.body.style.overflow="";
+  if(sheetKind==="pool" && S.pool.length) S.poolOnly=true;
+  sheetKind=null; save(); renderDraft();
+}
+$("#scrim").onclick=closeSheet; $("#sheetClose").onclick=closeSheet;
+$("#search").oninput=renderSheet;
+function renderSheet(){
+  const body=$("#sheetBody");
+  if (sheetKind==="map"){
+    body.innerHTML = Object.keys(MODES).map(k=>`<div class="mapGroup" style="--mc:${MODE_COLOR[k]}"><div class="gh"><i></i>${MODES[k]}</div><div class="mgrid">${
+      MAPS.filter(m=>m.m===k).map(m=>`<button class="mt press" data-map="${esc(m.n)}" aria-pressed="${m.n===S.map}">${esc(m.n)}<small>топ: ${esc(m.top[0][0])}</small></button>`).join("")}</div></div>`).join("");
+    body.querySelectorAll("[data-map]").forEach(b=>b.onclick=()=>{ if(S.map!==b.dataset.map){S.map=b.dataset.map; S.bans=[];S.allies=[];S.enemies=[];} closeSheet(); });
+    return;
+  }
+  const q=$("#search").value.trim().toLowerCase(), u=used(); let h="";
+  const btn=(b,extra="")=>{ const pressed = sheetKind==="pool" && S.pool.includes(b); const dis = sheetKind!=="pool" && u.has(b);
+    return `<button class="bt press" data-b="${esc(b)}" ${dis?"disabled":""} aria-pressed="${pressed}">${av(b)}<span>${esc(b)}</span>${extra}</button>`; };
+  if (!q && sheetKind!=="pool"){
+    const map=curMap(), seen=new Set(), rec=[];
+    for (const x of [...map.top.map(t=>t[0]),...map.most.map(t=>t[0])]) if(!seen.has(x)){seen.add(x);rec.push(x);}
+    h+=`<div style="display:grid;gap:8px"><div class="label">Популярные на ${esc(map.n)}</div><div class="bgrid">${rec.map(b=>{const t=map.top.find(x=>x[0]===b); return btn(b, t?`<span class="rec">${t[1]}%</span>`:"");}).join("")}</div></div>`;
+  }
+  if (sheetKind==="pool" && !q) h+=`<div style="display:flex;gap:8px"><button class="smallBtn press" id="poolAll">Выбрать всех</button><button class="smallBtn press" id="poolNone">Снять всех</button></div>`;
+  for (const t in TIERS){
+    const list=TIERS[t].filter(b=>b.toLowerCase().includes(q)); if(!list.length) continue;
+    h+=`<div style="display:grid;gap:8px"><div class="label">Тир ${t}</div><div class="bgrid">${list.map(b=>btn(b)).join("")}</div></div>`;
+  }
+  body.innerHTML = h || `<p class="sub">Никого не нашли.</p>`;
+  body.querySelectorAll(".bt").forEach(el=>el.onclick=()=>pickFromSheet(el.dataset.b));
+  if (sheetKind==="pool" && !q){ $("#poolAll").onclick=()=>{S.pool=[...ALL]; renderSheet();}; $("#poolNone").onclick=()=>{S.pool=[]; S.poolOnly=false; renderSheet();}; }
+}
+function pickFromSheet(b){
+  if (sheetKind==="pool"){ S.pool = S.pool.includes(b) ? S.pool.filter(x=>x!==b) : [...S.pool,b]; save(); renderSheet(); return; }
+  const cap={bans:6,allies:2,enemies:3}[sheetKind];
+  if (S[sheetKind].length<cap) S[sheetKind].push(b);
+  save(); closeSheet();
+}
+
+/* ===================== AI ===================== */
+let sample=null;
+function contextText(){
+  const mapLines = MAPS.map(m=>`${m.n} [${MODES[m.m]}] — топ винрейт: ${m.top.map(t=>`${t[0]} ${t[1]}% (пик ${t[2]}%)`).join(", ")}; чаще берут: ${m.most.map(t=>`${t[0]} ${t[1]}%`).join(", ")}; лучшие тройки: ${m.comps.map(c=>`${c[0]}+${c[1]}+${c[2]} ${c[3]}%`).join(", ")}`).join("\n");
+  return `ДАННЫЕ МЕТЫ BRAWL STARS (рейтинг, обновлено ${DATA_DATE}, патч от 16.09.2026):
+${RANKED_RULES}
+ТИР-ЛИСТ (средний винрейт по 6 режимам рейтинга): ${Object.entries(TIERS).map(([t,l])=>t+": "+l.join(", ")).join(" | ")}
+MASTERS+ (лобби Masters I и выше, 226 тыс. матчей): чаще всего пикают ${MASTERS_PICK.map(x=>x[0]+(x[1]?" "+x[1]+"%":"")).join(", ")}; лучший винрейт ${MASTERS_WIN.map(x=>x[0]+(x[1]?" "+x[1]+"%":"")).join(", ")}.
+КАРТЫ (рейтинг, все лиги; винрейт при пикрейте ниже 2% — малая выборка):
+${mapLines}
+НОВЫЕ И МЕТОВЫЕ БРАВЛЕРЫ:
+${KITS}`;
+}
+function draftText(){
+  const map=curMap();
+  return `ТЕКУЩИЙ ДРАФТ: карта ${map.n} (${MODES[map.m]}). Наша команда пикает ${S.order==="first"?"первой (пики 1, 4, 5)":"второй (пики 2, 3, 6)"}.
+Баны: ${S.bans.join(", ")||"нет"}. Союзники уже взяли: ${S.allies.join(", ")||"никого"}. Враги взяли: ${S.enemies.join(", ")||"никого"}.
+${S.poolOnly&&S.pool.length?"Доступны ТОЛЬКО эти бравлеры игрока (11 сила): "+S.pool.filter(b=>!used().has(b)).join(", "):"Игроку доступны все бравлеры."}
+Статистический расчёт приложения (кандидаты по очкам): ${candidates().slice(0,10).map(x=>`${x.b} ${x.s.toFixed(1)}`).join(", ")}.`;
+}
+const RULES = `Ты — тренер по рейтингу Brawl Stars уровня Pro. Отвечай по-русски, коротко, уверенно и конкретно, как топ-игрок.
+Опирайся прежде всего на данные ниже: это свежая статистика, а твои собственные знания об игре могут быть устаревшими. Бравлеров, вышедших после середины 2026 (Wendy, Nori, Cosmo, Vince, Shade, Glowy, Sirius, Trunk и других незнакомых тебе), оценивай только по данным и описаниям ниже.
+Никогда не выдумывай названия гаджетов, звёздных сил, снаряжения и гиперзарядов. Называй их, только если они есть в данных ниже или ты абсолютно уверен (давно существующие бравлеры). Иначе пиши «сборку сверь в игре».
+Не отправляй на сторонние сайты. Высокий винрейт при пикрейте меньше 2% считай ненадёжным.`;
+
+(async()=>{
+  try{ sample = await window.claude?.use?.("sample"); }catch(e){ sample=null; }
+  if (!sample){ noAI(); return; }
+  setTab(tab);
+  try{ const lim = await sample.limits(); if (lim?.images){ $("#shotBtn").hidden=false; $("#shotInput").accept = lim.images.mediaTypes.join(","); } }catch(e){}
+})();
+const CLAUDE_URL="https://claude.ai/artifact/Gp3pcjcbtUJFbdWcCSxPtM";
+function noAI(){
+  $("#chat").innerHTML = `<div class="msg a">Тренер с ИИ работает внутри Claude. Здесь, в приложении с главного экрана, расчёт пиков, карты и мета работают без интернета и без Claude.\n\nЧтобы спросить ИИ, нажми кнопку ниже: откроется версия с тренером в Claude.</div><a class="ghostBtn press" style="display:block;text-align:center;text-decoration:none;color:var(--fg)" href="${CLAUDE_URL}" target="_blank" rel="noopener">Открыть ИИ-тренера в Claude</a>`;
+  $("#send").disabled=true; $("#ask").placeholder="ИИ доступен в Claude";
+  const f=$("#aiBtn"); const a=document.createElement("a"); a.className=f.className; a.id="aiLink"; a.href=CLAUDE_URL; a.target="_blank"; a.rel="noopener"; a.style.textDecoration="none"; a.innerHTML=f.innerHTML.replace("Разбор ИИ","ИИ-разбор в Claude"); f.replaceWith(a);
+  setTab(tab);
+}
+function errText(e){
+  const c=e?.code;
+  if (c==="not_granted") return "Ты не разрешил приложению обращаться к Claude. Обнови страницу, чтобы разрешить.";
+  if (c==="rate_limited") return "Слишком много запросов подряд или закончился лимит. Попробуй через пару минут.";
+  if (c==="session_expired") return "Сессия истекла. Войди в Claude заново.";
+  if (c==="image_rejected") return "Этот скриншот не подошёл. Попробуй другой файл (JPEG или PNG).";
+  if (c==="invalid_json") return "Ответ пришёл в неверном формате. Попробуй ещё раз.";
+  if (c==="cancelled") return "";
+  return "Не получилось связаться с Claude. Попробуй ещё раз.";
+}
+
+let aiCtl=null;
+async function runAI(){
+  if (!sample) return;
+  openSheet("ai");
+  const body=$("#sheetBody");
+  body.innerHTML = `<div class="thinking"><div class="orb"></div><b style="color:var(--fg);font-size:16px">Тренер разбирает драфт</b><span>${esc(curMap().n)} · обычно 20–60 секунд</span></div>`;
+  aiCtl = new AbortController(); if($("#aiBtn"))$("#aiBtn").disabled=true;
+  const prompt = `${RULES}
+
+${contextText()}
+
+${draftText()}
+
+ЗАДАЧА: выбери 3 лучших пика для игрока прямо сейчас с учётом карты, режима, банов, союзников (синергия), врагов (контрпик) и порядка пиков. Если врагов ещё нет, предпочитай надёжные пики, которые сложно законтрить; если пик последний — контрпикай. Укажи, кого из врагов стоит опасаться, и план на матч.
+Ответь ТОЛЬКО JSON такого вида:
+{"picks":[{"name":"точное имя из списка","why":"почему именно он, 1-2 предложения","how":"как играть в этом матче, 1-2 предложения","build":"сборка, только если уверен, иначе пустая строка"}],"threats":["имя"],"team_plan":"план команды на карту, 2-3 предложения","note":"важное предупреждение или пустая строка"}`;
+  try{
+    const r = await sample.json(prompt, {modelTier:"complex", signal:aiCtl.signal});
+    const picks = Array.isArray(r?.picks)?r.picks:[];
+    body.innerHTML = picks.slice(0,3).map((p,i)=>`<div class="aip ${i===0?"first":""}">
+      <div class="h">${av(p.name||"?")}<h3 class="chunky">${esc(p.name)}</h3><span class="rk">#${i+1}</span></div>
+      <p>${esc(p.why)}</p>${p.how?`<div class="k">Как играть</div><p>${esc(p.how)}</p>`:""}${p.build?`<div class="k">Сборка</div><p>${esc(p.build)}</p>`:""}</div>`).join("")
+      + (r?.threats?.length?`<div style="display:grid;gap:8px"><div class="label">Опасные враги</div><div class="chips">${r.threats.map(t=>`<span class="chip red">${esc(t)}</span>`).join("")}</div></div>`:"")
+      + (r?.team_plan?`<div class="plan"><div class="label">План на карту</div><p>${esc(r.team_plan)}</p></div>`:"")
+      + (r?.note?`<p class="sub" style="margin:0">${esc(r.note)}</p>`:"")
+      + `<button class="ghostBtn press" id="aiAgain">Пересчитать</button>`;
+    $("#aiAgain").onclick=runAI;
+  }catch(e){
+    const t=errText(e);
+    if (t) body.innerHTML = `<p class="err">${esc(t)}</p><button class="ghostBtn press" id="aiAgain">Попробовать снова</button>`, $("#aiAgain").onclick=runAI;
+  }finally{ if($("#aiBtn"))$("#aiBtn").disabled=false; aiCtl=null; }
+}
+$("#aiBtn").onclick=runAI;
+
+/* screenshot -> draft */
+$("#shotBtn").onclick=()=>$("#shotInput").click();
+$("#shotInput").onchange=async ()=>{
+  const f=$("#shotInput").files[0]; if(!f||!sample) return;
+  const st=$("#shotStatus"); st.hidden=false; st.textContent="Читаю скриншот…";
+  try{
+    const r = await sample.json(`На изображении скриншот экрана выбора (пиков и банов) в рейтинге Brawl Stars, интерфейс может быть на русском. Определи карту, баны, пики моей команды (кроме меня, если мой пик ещё не сделан) и пики врагов. Моя команда обычно синяя/слева, враги красные/справа.
+Сопоставь имена ТОЛЬКО с этим списком (русские имена переведи на английские из списка): ${ALL.join(", ")}.
+Карту выбери ТОЛЬКО из списка: ${MAPS.map(m=>m.n).join(", ")} (если не уверен — null).
+Ответь только JSON: {"map":"имя или null","allies":["..."],"enemies":["..."],"bans":["..."],"we_pick_first":true/false/null}`, {images:f, modelTier:"default"});
+    const ok = n=>ALL.includes(n);
+    if (r?.map && MAPS.find(m=>m.n===r.map)) S.map=r.map;
+    if (Array.isArray(r?.bans)) S.bans=[...new Set(r.bans.filter(ok))].slice(0,6);
+    if (Array.isArray(r?.allies)) S.allies=[...new Set(r.allies.filter(ok))].slice(0,2);
+    if (Array.isArray(r?.enemies)) S.enemies=[...new Set(r.enemies.filter(ok))].slice(0,3);
+    if (r?.we_pick_first===true) S.order="first"; else if (r?.we_pick_first===false) S.order="second";
+    save(); renderDraft();
+    st.textContent="Готово: драфт заполнен по скриншоту. Проверь слоты.";
+  }catch(e){ st.textContent = errText(e)||"Отменено."; }
+  $("#shotInput").value="";
+};
+
+/* ===================== MAPS VIEW ===================== */
+let modeF="all"; const open=new Set();
+function renderModes(){
+  const opts=[["all","Все карты"],...Object.entries(MODES)];
+  $("#modeFilter").innerHTML = opts.map(([k,v])=>`<button class="press" data-m="${k}" aria-pressed="${k===modeF}">${v}</button>`).join("");
+  $("#modeFilter").querySelectorAll("button").forEach(b=>b.onclick=()=>{modeF=b.dataset.m; renderModes(); renderMaps();});
+}
+function renderMaps(){
+  const list = MAPS.filter(m=>modeF==="all"||m.m===modeF);
+  $("#mapList").innerHTML = list.map(m=>{
+    const max=Math.max(...m.top.map(t=>t[1])), isOpen=open.has(m.n);
+    return `<article class="mcard" style="--mc:${MODE_COLOR[m.m]}">
+      <div class="mh"><div class="modeIco">${MODE_SVG[m.m]}</div><div style="min-width:0"><div class="m">${MODES[m.m]}</div><h2 class="chunky">${esc(m.n)}</h2></div>
+      <button class="smallBtn press" data-use="${esc(m.n)}">Пикать</button></div>
+      <div class="mb">
+        <div class="label">Лучший винрейт</div>
+        <div style="display:grid;gap:9px">${m.top.slice(0,isOpen?5:3).map(t=>`<div class="bar"><span class="n">${av(t[0],"sm")}<span>${esc(t[0])}</span></span><span class="trk"><span class="fil" style="display:block;width:${Math.max(10,(t[1]-50)/(max-50)*100)}%"></span></span><span class="v ${t[2]<2?"low":""}">${t[1]}%</span></div>`).join("")}</div>
+        ${isOpen?`<div class="label">Чаще всего берут</div><div class="chips">${m.most.map(t=>`<span class="chip">${esc(t[0])} · ${t[1]}%</span>`).join("")}</div>
+        <div class="label">Лучшие тройки</div><div>${m.comps.map(c=>`<div class="comp"><div class="avs">${c.slice(0,3).map(b=>av(b,"sm")).join("")}</div><span class="cn">${esc(c.slice(0,3).join(" · "))}</span><b>${c[3]}%</b></div>`).join("")}</div>`:""}
+        <button class="more" data-tg="${esc(m.n)}">${isOpen?"Свернуть ▴":"Частые пики и лучшие тройки ▾"}</button>
+      </div></article>`; }).join("");
+  $("#mapList").querySelectorAll("[data-use]").forEach(b=>b.onclick=()=>{ S.map=b.dataset.use; S.bans=[];S.allies=[];S.enemies=[]; save(); renderDraft(); setTab("draft"); });
+  $("#mapList").querySelectorAll("[data-tg]").forEach(b=>b.onclick=()=>{ const n=b.dataset.tg; open.has(n)?open.delete(n):open.add(n); renderMaps(); });
+}
+
+/* ===================== META VIEW ===================== */
+function renderTiers(){
+  const p=MASTERS_PICK;
+  $("#podium").innerHTML = [[p[1],2],[p[0],1],[p[2],3]].map(([x,place])=>`<div class="pod ${place===1?"p1":""}"><span class="place">#${place}</span>${av(x[0],place===1?"lg":"")}<span class="pn">${esc(x[0])}</span><span class="pv">${x[1]}% пиков</span></div>`).join("");
+  $("#mPick").innerHTML = p.slice(3).map(x=>`<span class="chip">${esc(x[0])}</span>`).join("");
+  $("#mWin").innerHTML = MASTERS_WIN.map(x=>`<span class="chip">${esc(x[0])}${x[1]?" · "+x[1]+"%":""}</span>`).join("");
+  $("#tierList").innerHTML = Object.entries(TIERS).map(([t,l])=>`<div class="tierRow"><div class="tierL" style="--tc:${tc(t)}">${t}</div><div class="tierAvs">${l.map(b=>`<span class="chip">${esc(b)}</span>`).join("")}</div></div>`).join("");
+  $("#news").innerHTML = `<h2 style="font-size:19px">Что нового в рейтинге</h2>
+   <div class="newsItem"><div class="ni">1</div><div><b>Пики и баны</b><p>С Diamond I по 3 бана на команду, потом пики 1-2-2-1. Только 11 сила. С Masters нельзя заходить командой, победа 2-0 даёт больше очков.</p></div></div>
+   <div class="newsItem"><div class="ni">2</div><div><b>Новые бравлеры</b><p>Thunder Frogs — легендарная артиллерия из трёх лягушек, выходит в ноябре. Rey и Ruby — пара, которая лечит друг друга атаками.</p></div></div>
+   <div class="newsItem"><div class="ni">3</div><div><b>Баффи и гиперзаряды</b><p>Новые баффи у Mr. P, Lou, Gale, Chester, Mandy и Berry. Cosmo и Vince получают гиперзаряды с самонаводящимся Супером и рутом.</p></div></div>`;
+}
+
+/* ===================== COACH ===================== */
+const turns=[];
+const SUGG=["Кого пикать в моём драфте?","Как подняться с Mythic до Pro?","Как играть против Wendy?","Каких 5 бравлеров качать до 11 силы?","Почему все берут Brock в Нокауте?"];
+$("#sugg").innerHTML = SUGG.map(s=>`<button class="press">${esc(s)}</button>`).join("");
+$("#sugg").querySelectorAll("button").forEach(b=>b.onclick=()=>{ $("#ask").value=b.textContent; sendChat(); });
+function addMsg(role,text){ const d=document.createElement("div"); d.className="msg "+(role==="user"?"u":"a"); d.textContent=text; $("#chat").append(d); return d; }
+async function sendChat(){
+  const q=$("#ask").value.trim(); if(!q||!sample) return;
+  $("#ask").value=""; addMsg("user",q); turns.push({role:"user",content:q});
+  const bubble=addMsg("a","Думаю…"); $("#send").disabled=true;
+  bubble.scrollIntoView({block:"center",behavior:"smooth"});
+  const lead={role:"user",content:`${RULES}\n\n${contextText()}\n\n${draftText()}\n\nДальше вопросы игрока. Отвечай без markdown-разметки, простым текстом, максимум 8-10 строк, если не просят подробнее.`};
+  try{
+    const {text}=await sample([lead,...turns.slice(-10)],{cache:false,onText:({text})=>{bubble.textContent=text;}});
+    turns.push({role:"assistant",content:text});
+  }catch(e){ bubble.textContent = e.text || errText(e) || "Остановлено."; turns.pop(); }
+  finally{ $("#send").disabled=false; }
+}
+$("#send").onclick=sendChat;
+$("#ask").addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); sendChat(); }});
+
+renderDraft(); renderModes(); renderMaps(); renderTiers(); setTab("draft");
+if ("serviceWorker" in navigator && location.protocol==="https:") navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+
+</body></html>
